@@ -5,7 +5,9 @@ const logger = require('../utils/logger');
 const { hashPasswordSHA256 } = require('../utils/crypto');
 
 // PostgreSQL Pool configuration
-const connectionString = process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING || process.env.DATABASE_URL;
+const rawConnectionString = process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING || process.env.DATABASE_URL;
+// Strip query parameters (such as ?sslmode=require) so pg relies on explicit ssl: { rejectUnauthorized: false }
+const connectionString = rawConnectionString ? rawConnectionString.split('?')[0] : null;
 
 const poolConfig = connectionString ? {
   connectionString,
