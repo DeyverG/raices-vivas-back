@@ -5,7 +5,7 @@ const logger = require('../utils/logger');
 const { hashPasswordSHA256 } = require('../utils/crypto');
 
 // PostgreSQL Pool configuration
-const connectionString = process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL || process.env.DATABASE_URL;
+const connectionString = process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING || process.env.DATABASE_URL;
 
 const poolConfig = connectionString ? {
   connectionString,
@@ -72,40 +72,20 @@ async function query(text, params = []) {
   return { rows: [], rowCount: 0 };
 }
 
-// Test database connection and perform auto-migration if schema is missing
+// Test database connection
 async function testConnection() {
   if (!dbPool) return false;
   try {
     const client = await dbPool.connect();
     logger.info('Conexión exitosa con la base de datos PostgreSQL.');
-
-    // Auto-migrate schema and seed data if table is missing or empty
-    try {
-      const schemaPath = path.join(__dirname, '../../db/schema.sql');
-      const seedsPath = path.join(__dirname, '../../db/seeds.sql');
-
-      if (fs.existsSync(schemaPath)) {
-        const schemaSql = fs.readFileSync(schemaPath, 'utf8');
-        await client.query(schemaSql);
-      }
-
-      const countRes = await client.query('SELECT COUNT(*) FROM experiences;');
-      if (parseInt(countRes.rows[0].count, 10) === 0 && fs.existsSync(seedsPath)) {
-        logger.info('La tabla de experiencias está vacía. Poblando semillas (seeds.sql)...');
-        const seedsSql = fs.readFileSync(seedsPath, 'utf8');
-        await client.query(seedsSql);
-        logger.info('Semillas insertadas exitosamente.');
-      }
-    } catch (schemaErr) {
-      logger.warn('Aviso en verificación de tablas de PostgreSQL:', schemaErr.message);
-    }
-
-    client.release();
     isPgConnected = true;
+    client.release();
     return true;
   } catch (err) {
     logger.warn('PostgreSQL no está disponible localmente.', { error: err.message });
-    isPgConnected = false;
+    if (!connectionString && (!process.env.POSTGRES_HOST || process.env.POSTGRES_HOST === 'localhost')) {
+      isPgConnected = false;
+    }
     return false;
   }
 }
