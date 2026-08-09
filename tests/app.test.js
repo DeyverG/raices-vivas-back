@@ -13,6 +13,13 @@ describe('App Express Core & Health Check', () => {
     loggerSpy.mockRestore();
   });
 
+  test('GET / returns status 200 UP', async () => {
+    const res = await request(app).get('/');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('UP');
+    expect(res.body.service).toBe('Raíces Vivas REST API');
+  });
+
   test('GET /health returns status 200 UP', async () => {
     const res = await request(app).get('/health');
     expect(res.status).toBe(200);

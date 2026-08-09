@@ -3,15 +3,28 @@ const logger = require('../utils/logger');
 const { hashPasswordSHA256 } = require('../utils/crypto');
 
 // PostgreSQL Pool configuration
-const poolConfig = {
-  host: process.env.PGHOST || 'localhost',
-  port: process.env.PGPORT ? parseInt(process.env.PGPORT) : 5432,
-  user: process.env.PGUSER || 'postgres',
-  password: process.env.PGPASSWORD || 'postgres',
-  database: process.env.PGDATABASE || 'raices_vivas_db',
+const connectionString = process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL || process.env.DATABASE_URL;
+
+const poolConfig = connectionString ? {
+  connectionString,
+  ssl: process.env.PGSSL === 'false' ? false : { rejectUnauthorized: false },
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000
+  connectionTimeoutMillis: 5000
+} : {
+  host: process.env.POSTGRES_HOST || process.env.PGHOST || 'localhost',
+  port: process.env.POSTGRES_PORT ? parseInt(process.env.POSTGRES_PORT) : (process.env.PGPORT ? parseInt(process.env.PGPORT) : 5432),
+  user: process.env.POSTGRES_USER || process.env.PGUSER || 'postgres',
+  password: process.env.POSTGRES_PASSWORD || process.env.PGPASSWORD || 'postgres',
+  database: process.env.POSTGRES_DATABASE || process.env.PGDATABASE || 'raices_vivas_db',
+  ssl: (process.env.POSTGRES_HOST || process.env.PGHOST) &&
+       (process.env.POSTGRES_HOST !== 'localhost' && process.env.PGHOST !== 'localhost') &&
+       process.env.PGSSL !== 'false'
+    ? { rejectUnauthorized: false }
+    : false,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000
 };
 
 let dbPool = null;
@@ -37,21 +50,26 @@ const memoryDb = {
 
 // Database Query Adapter: executes against PostgreSQL pool or memory fallback
 async function query(text, params = []) {
-  if (dbPool && module.exports.getIsPgConnected()) {
+  if (dbPool) {
+    if (!isPgConnected) {
+      await testConnection();
+    }
 
-    try {
-      const res = await dbPool.query(text, params);
-      return res;
-    } catch (err) {
-      logger.error('Error al ejecutar consulta en PostgreSQL:', { text, error: err.message });
-      throw err;
+    if (module.exports.getIsPgConnected()) {
+      try {
+        const res = await dbPool.query(text, params);
+        return res;
+      } catch (err) {
+        logger.error('Error al ejecutar consulta en PostgreSQL:', { text, error: err.message });
+        throw err;
+      }
     }
   }
   // Return dummy object compatible with pg result format for memory store queries
   return { rows: [], rowCount: 0 };
 }
 
-// Test database connection at startup
+// Test database connection at startup or on demand
 async function testConnection() {
   if (!dbPool) return false;
   try {
@@ -61,7 +79,7 @@ async function testConnection() {
     isPgConnected = true;
     return true;
   } catch (err) {
-    logger.warn('PostgreSQL no está disponible localmente. Se utilizará el repositorio en memoria para el MVP.', { error: err.message });
+    logger.warn('PostgreSQL no está disponible localmente.', { error: err.message });
     isPgConnected = false;
     return false;
   }

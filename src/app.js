@@ -33,6 +33,17 @@ app.use('/api/v1/experiences', experiencesRoutes);
 app.use('/api/v1/reservations', reservationsRoutes);
 app.use('/api/v1/audit-log', bitacoraRoutes);
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'UP',
+    service: 'Raíces Vivas REST API',
+    documentation: '/api-docs',
+    health: '/health',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
