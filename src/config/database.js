@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const { Pool } = require('pg');
 const logger = require('../utils/logger');
 const { hashPasswordSHA256 } = require('../utils/crypto');
@@ -28,7 +30,8 @@ const poolConfig = connectionString ? {
 };
 
 let dbPool = null;
-let isPgConnected = false;
+// Default to true if a production connection string or remote host is provided so repositories route queries to PostgreSQL
+let isPgConnected = Boolean(connectionString || (process.env.POSTGRES_HOST && process.env.POSTGRES_HOST !== 'localhost'));
 
 try {
   dbPool = new Pool(poolConfig);
@@ -37,6 +40,12 @@ try {
   });
 } catch (err) {
   logger.warn('No se pudo instanciar la piscina de PostgreSQL:', err.message);
+  isPgConnected = false;
+}
+
+// Automatically verify connection on load if pool exists (skipped during Jest tests)
+if (dbPool && process.env.NODE_ENV !== 'test') {
+  testConnection().catch(() => {});
 }
 
 // In-Memory Store limpiado para que el backend opere 100% sobre PostgreSQL / datos reales
@@ -50,31 +59,47 @@ const memoryDb = {
 
 // Database Query Adapter: executes against PostgreSQL pool or memory fallback
 async function query(text, params = []) {
-  if (dbPool) {
-    if (!isPgConnected) {
-      await testConnection();
-    }
-
-    if (module.exports.getIsPgConnected()) {
-      try {
-        const res = await dbPool.query(text, params);
-        return res;
-      } catch (err) {
-        logger.error('Error al ejecutar consulta en PostgreSQL:', { text, error: err.message });
-        throw err;
-      }
+  if (dbPool && module.exports.getIsPgConnected()) {
+    try {
+      const res = await dbPool.query(text, params);
+      return res;
+    } catch (err) {
+      logger.error('Error al ejecutar consulta en PostgreSQL:', { text, error: err.message });
+      throw err;
     }
   }
   // Return dummy object compatible with pg result format for memory store queries
   return { rows: [], rowCount: 0 };
 }
 
-// Test database connection at startup or on demand
+// Test database connection and perform auto-migration if schema is missing
 async function testConnection() {
   if (!dbPool) return false;
   try {
     const client = await dbPool.connect();
     logger.info('Conexión exitosa con la base de datos PostgreSQL.');
+
+    // Auto-migrate schema and seed data if table is missing or empty
+    try {
+      const schemaPath = path.join(__dirname, '../../db/schema.sql');
+      const seedsPath = path.join(__dirname, '../../db/seeds.sql');
+
+      if (fs.existsSync(schemaPath)) {
+        const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+        await client.query(schemaSql);
+      }
+
+      const countRes = await client.query('SELECT COUNT(*) FROM experiences;');
+      if (parseInt(countRes.rows[0].count, 10) === 0 && fs.existsSync(seedsPath)) {
+        logger.info('La tabla de experiencias está vacía. Poblando semillas (seeds.sql)...');
+        const seedsSql = fs.readFileSync(seedsPath, 'utf8');
+        await client.query(seedsSql);
+        logger.info('Semillas insertadas exitosamente.');
+      }
+    } catch (schemaErr) {
+      logger.warn('Aviso en verificación de tablas de PostgreSQL:', schemaErr.message);
+    }
+
     client.release();
     isPgConnected = true;
     return true;
