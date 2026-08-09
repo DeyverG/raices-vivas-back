@@ -1,0 +1,199 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "API REST Raíces Vivas - Turismo Comunitario Sostenible",
+    "version": "1.0.0",
+    "description": "Especificación de la API REST para el MVP del proyecto Raíces Vivas (Piedemonte Amazónico - Caquetá & Putumayo)."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000/api/v1",
+      "description": "Servidor Local de Desarrollo"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "summary": "Registro de usuario con cifrado SHA-256 y Ley 1581",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["fullName", "email", "password", "role", "dataConsent"],
+                "properties": {
+                  "fullName": { "type": "string", "example": "María Pérez" },
+                  "email": { "type": "string", "example": "maria@ejemplo.com" },
+                  "password": { "type": "string", "example": "secreta123" },
+                  "role": { "type": "string", "enum": ["Visitante", "Comunidad", "Coordinador"], "example": "Visitante" },
+                  "communityName": { "type": "string", "example": "" },
+                  "dataConsent": { "type": "boolean", "example": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Usuario registrado exitosamente" },
+          "400": { "description": "Campos faltantes o rechazo de política de datos Ley 1581" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Inicio de sesión de usuario",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "example": "viajero@raicesvivas.org" },
+                  "password": { "type": "string", "example": "admin123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Autenticación exitosa con Token JWT" },
+          "401": { "description": "Credenciales inválidas" }
+        }
+      }
+    },
+    "/experiences": {
+      "get": {
+        "summary": "Catálogo de experiencias con filtros cruzados",
+        "parameters": [
+          { "name": "region", "in": "query", "schema": { "type": "string" } },
+          { "name": "type", "in": "query", "schema": { "type": "string" } },
+          { "name": "language", "in": "query", "schema": { "type": "string" } },
+          { "name": "duration", "in": "query", "schema": { "type": "string" } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Lista de experiencias devueltas" }
+        }
+      },
+      "post": {
+        "summary": "Publicar nueva experiencia (Comunidad anfitriona)",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["title", "price", "summary", "imageUrl"],
+                "properties": {
+                  "title": { "type": "string" },
+                  "region": { "type": "string" },
+                  "type": { "type": "string" },
+                  "duration": { "type": "string" },
+                  "price": { "type": "number" },
+                  "language": { "type": "string" },
+                  "summary": { "type": "string" },
+                  "description": { "type": "string" },
+                  "imageUrl": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Experiencia registrada en estado 'pendiente'" }
+        }
+      }
+    },
+    "/experiences/{id}/status": {
+      "patch": {
+        "summary": "Aprobar o rechazar experiencia (Coordinador ATCPA)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["status"],
+                "properties": {
+                  "status": { "type": "string", "enum": ["aprobada", "rechazada"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Estado de la experiencia actualizado" }
+        }
+      }
+    },
+    "/reservations": {
+      "post": {
+        "summary": "Solicitar reserva directa de experiencia",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["experienceId", "visitDate", "travelersCount"],
+                "properties": {
+                  "experienceId": { "type": "string" },
+                  "visitDate": { "type": "string", "format": "date" },
+                  "travelersCount": { "type": "integer" },
+                  "specialRequests": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Solicitud de reserva registrada en estado 'pendiente'" }
+        }
+      }
+    },
+    "/reservations/{id}/confirm": {
+      "post": {
+        "summary": "Confirmar reserva por la comunidad anfitriona",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Reserva confirmada con notificación enviada" }
+        }
+      }
+    },
+    "/reservations/{id}/reject": {
+      "post": {
+        "summary": "Rechazar reserva por la comunidad anfitriona",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Reserva rechazada con notificación enviada" }
+        }
+      }
+    },
+    "/audit-log": {
+      "get": {
+        "summary": "Obtener trazabilidad de Bitácora inmutable (RNF-010)",
+        "responses": {
+          "200": { "description": "Historial de bitácora entregado" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+# Node modules y dependencias
+node_modules/
+
+# Archivos de entorno y credenciales sensibles
+.env
+.env.local
+.env.production
+
+# Archivos de registros y logs
+*.log
+npm-debug.log*
+
+# Cobertura de pruebas
+coverage/
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
