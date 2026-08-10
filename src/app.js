@@ -25,7 +25,26 @@ app.use((req, res, next) => {
 });
 
 // Swagger API Documentation UI
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+// Los assets se cargan desde CDN: los estáticos de swagger-ui-dist no viajan
+// al bundle de la funcion serverless en Vercel y la UI queda en blanco.
+const SWAGGER_CDN = 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14';
+const swaggerUiOptions = {
+  customCssUrl: `${SWAGGER_CDN}/swagger-ui.min.css`,
+  customJs: [
+    `${SWAGGER_CDN}/swagger-ui-bundle.js`,
+    `${SWAGGER_CDN}/swagger-ui-standalone-preset.js`
+  ],
+  customSiteTitle: 'Raíces Vivas — API REST'
+};
+
+// Especificación cruda: respaldo y punto de importación para Postman
+app.get('/api-docs.json', (req, res) => res.json(swaggerDocument));
+
+app.use(
+  '/api-docs',
+  swaggerUi.serveFiles(swaggerDocument, swaggerUiOptions),
+  swaggerUi.setup(swaggerDocument, swaggerUiOptions)
+);
 
 // API v1 Routes
 app.use('/api/v1/auth', authRoutes);

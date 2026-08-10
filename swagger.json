@@ -7,6 +7,10 @@
   },
   "servers": [
     {
+      "url": "/api/v1",
+      "description": "Mismo origen que sirve esta documentación (Vercel o local)"
+    },
+    {
       "url": "http://localhost:5000/api/v1",
       "description": "Servidor Local de Desarrollo"
     }
